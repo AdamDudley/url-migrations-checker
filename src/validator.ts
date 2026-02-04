@@ -42,8 +42,7 @@ export async function validate(config: ValidatorConfig): Promise<ValidationRepor
       const result = await validateUrl(
         crawledUrl.path,
         crawledUrl.title,
-        config.destinationUrl,
-        config.timeout
+        config
       );
 
       results.push(result);
@@ -104,7 +103,7 @@ export async function validate(config: ValidatorConfig): Promise<ValidationRepor
   await fse.writeJson(config.outputPath, report, { spaces: 2 });
 
   // Print summary
-  printSummary(summary, config.outputPath);
+  printSummary(summary, config.outputPath, config);
 
   // Print errors and warnings
   printIssues(results, config.verbose);
@@ -118,16 +117,15 @@ export async function validate(config: ValidatorConfig): Promise<ValidationRepor
 async function validateUrl(
   path: string,
   sourceTitle: string | null,
-  destinationUrl: string,
-  timeout: number
+  config: ValidatorConfig
 ): Promise<ValidationResult> {
-  const destUrl = joinUrl(destinationUrl, path);
+  const destUrl = joinUrl(config.destinationUrl, path);
   const issues: ValidationIssue[] = [];
   let status: 'ok' | 'warning' | 'error' = 'ok';
 
   const startTime = Date.now();
   const result = await fetchUrl(destUrl, {
-    timeout,
+    timeout: config.timeout,
     retries: 1,
     followRedirects: true,
   });
@@ -174,14 +172,18 @@ async function validateUrl(
     const originalUrl = new URL(destUrl);
     const finalUrl = new URL(result.finalUrl);
 
-    // Only warn if redirected to a different path (not just protocol or www)
+    // Only flag if redirected to a different path (not just protocol or www)
     if (originalUrl.pathname !== finalUrl.pathname) {
       issues.push({
         type: 'redirect',
         message: `Redirected to: ${finalUrl.pathname}`,
         details: { finalUrl: result.finalUrl },
       });
-      status = status === 'ok' ? 'warning' : status;
+
+      // Only set warning if not treating redirects as OK
+      if (config.redirectHandling === 'warning') {
+        status = status === 'ok' ? 'warning' : status;
+      }
     }
   }
 
@@ -283,7 +285,7 @@ function calculateSummary(results: ValidationResult[], durationMs: number): Vali
 /**
  * Prints summary to console
  */
-function printSummary(summary: ValidationSummary, outputPath: string): void {
+function printSummary(summary: ValidationSummary, outputPath: string, config: ValidatorConfig): void {
   console.log('');
   console.log(chalk.blue('═'.repeat(60)));
   console.log(chalk.blue.bold('Validation Complete'));
@@ -298,7 +300,11 @@ function printSummary(summary: ValidationSummary, outputPath: string): void {
   console.log(chalk.red('  Soft 404s:'), summary.soft404Count);
   console.log(chalk.red('  Server Errors:'), summary.serverErrorCount);
   console.log(chalk.yellow('  Title Mismatches:'), summary.titleMismatchCount);
-  console.log(chalk.yellow('  Redirects:'), summary.redirectCount);
+  if (config.redirectHandling === 'ok') {
+    console.log(chalk.green('  Redirects (allowed):'), summary.redirectCount);
+  } else {
+    console.log(chalk.yellow('  Redirects:'), summary.redirectCount);
+  }
   console.log('');
   console.log(chalk.blue('Duration:'), formatDuration(summary.durationMs));
   console.log(chalk.blue('Report:'), outputPath);

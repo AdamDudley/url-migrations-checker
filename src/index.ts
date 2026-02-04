@@ -94,6 +94,7 @@ program
   .option('-o, --output <path>', 'Output report file path')
   .option('-c, --concurrency <number>', 'Number of parallel requests', '5')
   .option('-t, --timeout <ms>', 'Request timeout in milliseconds', '10000')
+  .option('--redirects-ok', 'Treat redirects as OK instead of warning', false)
   .option('-v, --verbose', 'Enable verbose logging', false)
   .action(async (options) => {
     try {
@@ -118,6 +119,7 @@ program
         timeout: parseInt(options.timeout, 10),
         outputPath: options.output || generateReportFilename(),
         verbose: options.verbose,
+        redirectHandling: options.redirectsOk ? 'ok' : 'warning',
       };
 
       // Validate numeric options

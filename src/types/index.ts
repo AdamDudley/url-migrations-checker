@@ -175,6 +175,8 @@ export interface ValidatorConfig {
   outputPath: string;
   /** Enable verbose logging */
   verbose: boolean;
+  /** How to handle redirects: 'warning' (default) or 'ok' */
+  redirectHandling: 'warning' | 'ok';
 }
 
 /**
